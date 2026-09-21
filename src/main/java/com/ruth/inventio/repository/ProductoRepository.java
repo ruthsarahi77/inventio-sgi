@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ProductoRepository extends BaseRepository<Producto> {
+    Long countByEstado(com.ruth.inventio.model.EstadoRegistro estado);
 
     Optional<Producto> findByCodigo(String codigo);
 

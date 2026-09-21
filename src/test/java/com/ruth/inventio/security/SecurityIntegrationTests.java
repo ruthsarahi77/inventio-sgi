@@ -48,7 +48,7 @@ class SecurityIntegrationTests {
     @Import({SecurityConfig.class,JwtConfig.class,JwtUserConverter.class,SecurityErrorHandler.class,
             AuthService.class,AuthController.class,ProductController.class,CustomerController.class,
             UserController.class,SalesController.class,QuoteController.class,ReceiptController.class,
-            InventoryController.class,GlobalExceptionHandler.class})
+            InventoryController.class,QuotePdfController.class,DashboardController.class,GlobalExceptionHandler.class})
     static class TestConfig {
         @Bean UsuarioRepository usuarios() { return mock(UsuarioRepository.class); }
         @Bean ProductService productos() { return mock(ProductService.class); }
@@ -56,6 +56,8 @@ class SecurityIntegrationTests {
         @Bean UserService users() { return mock(UserService.class); }
         @Bean SalesService ventas() { return mock(SalesService.class); }
         @Bean QuoteService proformas() { return mock(QuoteService.class); }
+        @Bean QuotePdfService pdf() { return mock(QuotePdfService.class); }
+        @Bean DashboardService dashboard() { return mock(DashboardService.class); }
         @Bean ReceiptService recibos() { return mock(ReceiptService.class); }
         @Bean InventoryApiService inventario() { return mock(InventoryApiService.class); }
     }
@@ -107,6 +109,8 @@ class SecurityIntegrationTests {
         assertTrue(hash.startsWith("$2")); assertNotEquals(PASSWORD,hash);
     }
     @Test void deniesMissingInvalidAndExpiredTokens() throws Exception {
+        mvc.perform(get("/api/dashboard/stats")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/proformas/1/pdf")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/products")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.status").value(401));
         mvc.perform(get("/api/products").header("Authorization","Bearer invalid"))
                 .andExpect(status().isUnauthorized());
@@ -139,6 +143,12 @@ class SecurityIntegrationTests {
     @ParameterizedTest @EnumSource(NombreRol.class)
     void enforcesPermissionsForEachRole(NombreRol role) throws Exception {
         role(role); String token=login();
+        mvc.perform(get("/api/dashboard/stats").header("Authorization", "Bearer " + token))
+                .andExpect(status().is(role == NombreRol.VENDEDOR ? 403 : 200));
+        when(context.getBean(QuotePdfService.class).obtener(1L))
+                .thenReturn(new QuotePdfService.Documento("PRO-1", new byte[]{1}));
+        mvc.perform(get("/api/proformas/1/pdf").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_PDF));
         for(String path:List.of("/api/products","/api/customers","/api/inventory","/api/quotes","/api/sales","/api/receipts")) {
             mvc.perform(get(path).header("Authorization","Bearer "+token)).andExpect(status().isOk());
         }

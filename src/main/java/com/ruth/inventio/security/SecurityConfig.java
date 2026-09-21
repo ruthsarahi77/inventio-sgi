@@ -24,8 +24,11 @@ public class SecurityConfig {
             JwtUserConverter converter, SecurityErrorHandler errors) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/dashboard/stats").hasAnyRole("ADMIN", "SUPERVISOR")
                 .requestMatchers("/api/users/**", "/api/roles/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/inventory/kardex/**").hasAnyRole("ADMIN", "SUPERVISOR")
+                .requestMatchers(HttpMethod.GET, "/api/proformas/{id}/pdf")
+                    .hasAnyRole("ADMIN", "SUPERVISOR", "VENDEDOR")
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/customers/**", "/api/inventory/**",
                         "/api/quotes/**", "/api/sales/**", "/api/receipts/**")
                     .hasAnyRole("ADMIN", "SUPERVISOR", "VENDEDOR")
@@ -56,6 +59,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setExposedHeaders(List.of("Content-Disposition"));
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
         var source = new UrlBasedCorsConfigurationSource();

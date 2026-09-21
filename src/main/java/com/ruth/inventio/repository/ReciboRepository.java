@@ -10,6 +10,15 @@ import com.ruth.inventio.entity.Recibo;
 import java.util.Optional;
 
 public interface ReciboRepository extends BaseRepository<Recibo> {
+    @Query("""
+            select count(r) from Recibo r
+            where r.fecha >= :inicio and r.fecha < :fin
+              and r.fecha >= :inicioHoy and r.fecha < :finHoy
+              and r.venta.estado <> com.ruth.inventio.model.EstadoVenta.ANULADA
+            """)
+    Long contarHoyDashboard(@Param("inicio") java.time.Instant inicio, @Param("fin") java.time.Instant fin,
+            @Param("inicioHoy") java.time.Instant inicioHoy, @Param("finHoy") java.time.Instant finHoy);
+
 @Override
     @EntityGraph(attributePaths = {"venta", "usuario"})
     Optional<Recibo> findById(Long id);

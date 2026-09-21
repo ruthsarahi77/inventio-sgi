@@ -15,6 +15,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class DocumentoCalculator {
+    private static final BigDecimal FACTOR_IGV = new BigDecimal("1.18");
+    public record DesgloseIgv(BigDecimal subtotal, BigDecimal igv) {}
+
+    /** Desglosa el IGV incluido sin modificar el total monetario ya persistido. */
+    public DesgloseIgv desglosarIgvIncluido(BigDecimal total) {
+        BigDecimal base = total.divide(FACTOR_IGV, 2, RoundingMode.HALF_UP);
+        return new DesgloseIgv(base, total.subtract(base).setScale(2, RoundingMode.HALF_UP));
+    }
     public record Linea(Producto producto,BigDecimal cantidad,BigDecimal precio,BigDecimal subtotal) {}
     private final ProductoRepository productos;
     private final Validator validator;

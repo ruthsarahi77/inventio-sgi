@@ -34,9 +34,12 @@ public class QuoteService {
                 .stream().map(ComercialMapper::proforma).toList();
     }
     public ProformaResponse obtener(Long id) {
+        return ComercialMapper.proforma(obtenerParaDocumento(id));
+    }
+    public Proforma obtenerParaDocumento(Long id) {
         var p=quotes.findById(id).orElseThrow(() -> new RecursoNoEncontradoException("Proforma no encontrada: "+id));
         current.verificarPropietario(p.getUsuario().getId());
-        return ComercialMapper.proforma(p);
+        return p;
     }
     @Transactional @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     public ProformaResponse crear(ProformaRequest r) {
