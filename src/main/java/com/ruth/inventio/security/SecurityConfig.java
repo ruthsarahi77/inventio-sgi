@@ -23,9 +23,10 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder decoder,
             JwtUserConverter converter, SecurityErrorHandler errors) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/dashboard/stats").hasAnyRole("ADMIN", "SUPERVISOR")
-                .requestMatchers("/api/users/**", "/api/roles/**").hasRole("ADMIN")
+                .requestMatchers("/api/users/**", "/api/usuarios/**", "/api/roles/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/inventory/kardex/**").hasAnyRole("ADMIN", "SUPERVISOR")
                 .requestMatchers(HttpMethod.GET, "/api/proformas/{id}/pdf")
                     .hasAnyRole("ADMIN", "SUPERVISOR", "VENDEDOR")

@@ -10,6 +10,11 @@ Ver [modelo de dominio](docs/modelo-dominio.md) para relaciones y tablas, y
 [API de inventario](docs/inventario.md) para endpoints, ejemplos JSON y concurrencia.
 La guia vigente para configuracion de seguridad, todos los endpoints y el flujo
 completo es [flujo comercial y autenticacion](docs/flujo-comercial.md).
+Ver tambien [ADMIN inicial, login y /me](docs/autenticacion-inicial.md) para las
+variables `INITIAL_ADMIN_*` y el contrato compatible con Angular/React Native.
+El contrato de la Fase 2 esta en [gestion de usuarios](docs/gestion-usuarios.md).
+El [contrato final de autenticacion y usuarios](docs/contrato-autenticacion-usuarios.md)
+unifica login, JWT, recuperacion SMTP y gestion ADMIN, con configuracion y ejemplos.
 
 ## Configuracion
 
@@ -53,7 +58,8 @@ $env:DB_PASSWORD = $dbCredential.GetNetworkCredential().Password
 Configurar opcionalmente `$env:SPRING_PROFILES_ACTIVE = 'dev'` para ver SQL,
 sin logging de valores de parametros. SSL se exige tambien en el datasource.
 JPA detecta PostgreSQL a traves del driver y los metadatos de conexion.
-`ddl-auto=none` y `spring.sql.init.mode=never` evitan cambios automaticos del esquema.
+Se conserva `ddl-auto=update` y `spring.sql.init.mode=never`; el flujo de
+autenticacion y gestion de usuarios no incorpora migraciones ni cambios de entidades.
 
 ## Verificacion
 

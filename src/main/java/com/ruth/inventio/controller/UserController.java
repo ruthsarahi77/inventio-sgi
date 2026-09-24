@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping({"/api/users", "/api/usuarios"})
 public class UserController {
     private final UserService service;
     public UserController(UserService service) { this.service=service; }
@@ -25,7 +25,7 @@ public class UserController {
         return service.actualizar(id,request);
     }
 
-    @PatchMapping("/{id}/status")
+    @PatchMapping({"/{id}/status", "/{id}/estado"})
     public UsuarioResponse estado(@PathVariable Long id,@Valid @RequestBody EstadoRequest request) {
         return service.estado(id,request);
     }

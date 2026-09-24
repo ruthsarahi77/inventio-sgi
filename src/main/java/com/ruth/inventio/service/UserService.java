@@ -3,7 +3,7 @@ package com.ruth.inventio.service;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.nio.charset.StandardCharsets;
+import com.ruth.inventio.security.PasswordPolicy;
 import com.ruth.inventio.dto.*;
 import com.ruth.inventio.entity.Usuario;
 import com.ruth.inventio.exception.*;
@@ -32,6 +32,7 @@ public class UserService {
     @Transactional
     public UsuarioResponse crear(UsuarioRequest r) {
         var u=new Usuario(); actualizarDatos(u,r.nombre(),r.email(),r.password(),r.roles());
+        u.setEstado(r.estado());
         return ComercialMapper.usuario(usuarios.save(u));
     }
     @Transactional
@@ -58,12 +59,10 @@ public class UserService {
     private void actualizarDatos(Usuario u,String nombre,String email,String password,Set<NombreRol> nombres) {
         String normalizado=email.trim().toLowerCase(Locale.ROOT);
         usuarios.findByEmailIgnoreCase(normalizado).filter(e -> !e.getId().equals(u.getId()))
-                .ifPresent(e -> { throw new ReglaNegocioException("Email de usuario duplicado."); });
+                .ifPresent(e -> { throw new ReglaNegocioException(HttpStatus.CONFLICT,"Email de usuario duplicado."); });
         u.setNombre(nombre.trim()); u.setEmail(normalizado);
         if (password!=null) {
-            if (password.getBytes(StandardCharsets.UTF_8).length>72) {
-                throw new ReglaNegocioException(HttpStatus.BAD_REQUEST,"La contrasena supera 72 bytes UTF-8.");
-            }
+            PasswordPolicy.validate(password);
             u.setPassword(passwords.encode(password));
         }
         u.getRoles().clear();

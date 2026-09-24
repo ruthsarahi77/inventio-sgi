@@ -18,6 +18,7 @@ import com.ruth.inventio.repository.RolRepository;
 import com.ruth.inventio.repository.UsuarioRepository;
 import com.ruth.inventio.repository.VentaDetalleRepository;
 import com.ruth.inventio.repository.VentaRepository;
+import com.ruth.inventio.repository.PasswordResetTokenRepository;
 import org.hibernate.cfg.Configuration;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
@@ -28,7 +29,7 @@ class DomainMappingTests {
 
     private static final List<Class<?>> ENTITIES = List.of(Usuario.class, Rol.class,
             Cliente.class, Producto.class, MovimientoInventario.class, Proforma.class,
-            ProformaDetalle.class, Venta.class, VentaDetalle.class, Recibo.class);
+            ProformaDetalle.class, Venta.class, VentaDetalle.class, Recibo.class, PasswordResetToken.class);
 
     @Test
     void validatesMappingsRepositoriesAndGeneratesPostgresDdlWithoutDatabase() throws Exception {
@@ -45,12 +46,12 @@ class DomainMappingTests {
         // Sin URL, credenciales ni conexiones: se validan los mapeos y se escribe solo un script.
         try (var factory = configuration.buildSessionFactory();
              var entityManager = factory.createEntityManager()) {
-            assertEquals(10, factory.getMetamodel().getEntities().size());
+            assertEquals(11, factory.getMetamodel().getEntities().size());
             JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
             for (Class<?> repository : List.of(UsuarioRepository.class, RolRepository.class,
                     ClienteRepository.class, ProductoRepository.class, MovimientoInventarioRepository.class,
                     ProformaRepository.class, ProformaDetalleRepository.class, VentaRepository.class,
-                    VentaDetalleRepository.class, ReciboRepository.class)) {
+                    VentaDetalleRepository.class, ReciboRepository.class, PasswordResetTokenRepository.class)) {
                 assertNotNull(repositories.getRepository(repository));
                 assertTrue(java.util.Arrays.stream(repository.getMethods())
                         .noneMatch(method -> method.getName().startsWith("delete")));
@@ -62,7 +63,8 @@ class DomainMappingTests {
                 .map(match -> match.group(1)).collect(Collectors.toSet());
         assertEquals(Set.of("usuarios", "roles", "usuarios_roles", "clientes", "productos",
                 "movimientos_inventario", "proformas", "proforma_detalles", "ventas",
-                "venta_detalles", "recibos"), tables);
+                "venta_detalles", "recibos", "password_reset_tokens"), tables);
+        assertTrue(sql.contains("token_hash varchar(64) not null unique"));
         assertTrue(sql.contains("cantidad > 0"));
         assertTrue(sql.contains("costo_unitario >= 0"));
         assertTrue(sql.contains("monto > 0"));

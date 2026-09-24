@@ -46,7 +46,7 @@ class SecurityIntegrationTests {
 
     @Configuration @EnableWebMvc @EnableWebSecurity
     @Import({SecurityConfig.class,JwtConfig.class,JwtUserConverter.class,SecurityErrorHandler.class,
-            AuthService.class,AuthController.class,ProductController.class,CustomerController.class,
+            AuthService.class,CurrentUser.class,AuthController.class,ProductController.class,CustomerController.class,
             UserController.class,SalesController.class,QuoteController.class,ReceiptController.class,
             InventoryController.class,QuotePdfController.class,DashboardController.class,GlobalExceptionHandler.class})
     static class TestConfig {
@@ -91,6 +91,11 @@ class SecurityIntegrationTests {
                 .content("{\"email\":\"admin@example.test\",\"password\":\""+PASSWORD+"\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.usuario.password").doesNotExist())
+                .andExpect(jsonPath("$.user.id").value(1))
+                .andExpect(jsonPath("$.user.nombre").value("Administrador"))
+                .andExpect(jsonPath("$.user.email").value("admin@example.test"))
+                .andExpect(jsonPath("$.user.rol").value(usuario.getRoles().iterator().next().getNombre().name()))
+                .andExpect(jsonPath("$.user.password").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
         return JsonMapper.builder().build().readTree(body).path("accessToken").asString();
     }
@@ -107,6 +112,37 @@ class SecurityIntegrationTests {
                 .andExpect(status().isOk()).andReturn();
         assertNull(result.getRequest().getSession(false));
         assertTrue(hash.startsWith("$2")); assertNotEquals(PASSWORD,hash);
+    }
+    @ParameterizedTest @EnumSource(value=NombreRol.class, names={"ADMIN","VENDEDOR"})
+    void meReturnsCurrentAccountForBothRoles(NombreRol role) throws Exception {
+        role(role);
+        String token=login();
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.nombre").value("Administrador"))
+                .andExpect(jsonPath("$.email").value("admin@example.test"))
+                .andExpect(jsonPath("$.rol").value(role.name()))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.tokenVersion").doesNotExist());
+        usuario.setEstado(EstadoRegistro.INACTIVO);
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token)).andExpect(status().isUnauthorized());
+    }
+    @Test void meRequiresValidTokenAndThereIsNoPublicRegistration() throws Exception {
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer invalid")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test void sellerCannotCreateUsersOrChangeRoles() throws Exception {
+        role(NombreRol.VENDEDOR);
+        String token=login();
+        mvc.perform(post("/api/users").header("Authorization","Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")) .andExpect(status().isForbidden());
+        mvc.perform(put("/api/users/1").header("Authorization","Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"roles\":[\"ADMIN\"]}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/roles").header("Authorization","Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")) .andExpect(status().isForbidden());
     }
     @Test void deniesMissingInvalidAndExpiredTokens() throws Exception {
         mvc.perform(get("/api/dashboard/stats")).andExpect(status().isUnauthorized());
@@ -139,6 +175,14 @@ class SecurityIntegrationTests {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"admin@example.test\",\"password\":\"incorrecta\"}"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value("Credenciales invalidas o autenticacion requerida."));
+    }
+    @Test void unknownEmailAndOversizedUtf8PasswordAreRejected() throws Exception {
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"missing@example.test\",\"password\":\""+PASSWORD+"\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"admin@example.test\",\"password\":\""+"é".repeat(40)+"\"}"))
+                .andExpect(status().isUnauthorized());
     }
     @ParameterizedTest @EnumSource(NombreRol.class)
     void enforcesPermissionsForEachRole(NombreRol role) throws Exception {

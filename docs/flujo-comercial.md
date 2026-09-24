@@ -19,9 +19,9 @@ Opcionales:
 | JWT_AUDIENCE | `inventio-clients` |
 | JWT_TTL_SECONDS | `900`; rango 60-3600 segundos |
 | CORS_ALLOWED_ORIGINS | Vacio; origenes exactos separados por coma, p. ej. `http://localhost:4200` |
-| BOOTSTRAP_ADMIN_ENABLED | `false` |
-| BOOTSTRAP_ADMIN_EMAIL | Email del primer administrador |
-| BOOTSTRAP_ADMIN_PASSWORD | Clave inicial, 12-72 caracteres y maximo 72 bytes UTF-8 |
+| INITIAL_ADMIN_NAME | Nombre del ADMIN inicial, maximo 200 caracteres |
+| INITIAL_ADMIN_EMAIL | Email del ADMIN inicial |
+| INITIAL_ADMIN_PASSWORD | Clave inicial, 12-72 caracteres y maximo 72 bytes UTF-8 |
 
 Para generar una clave JWT en PowerShell sin imprimirla:
 
@@ -37,7 +37,8 @@ Guardar la clave en un gestor de secretos y conservarla entre reinicios. Rotarla
 invalida los JWT anteriores. `.env.example` sigue siendo una plantilla; Spring
 Boot no carga archivos .env automaticamente.
 
-Se mantiene `ddl-auto=none`. Si existen las tablas del modelo anterior, revisar
+Se conserva la configuracion JPA existente (`ddl-auto=update`); este cambio de
+autenticacion no agrega ni modifica tablas. Si existen las tablas del modelo anterior, revisar
 y aplicar manualmente [inventario-ajustes.sql](sql/inventario-ajustes.sql) y
 [comercial-seguridad.sql](sql/comercial-seguridad.sql), en ese orden. Este ultimo
 agrega token_version, ventas.proforma_id, indices unicos y los tres roles.
@@ -45,19 +46,25 @@ Si no hay tablas, `clean verify` genera `target/inventio-schema-preview.sql`
 como borrador para crear el esquema actualizado: revisarlo antes de aplicarlo.
 Los scripts no se ejecutan al iniciar y no contienen usuarios ni contrasenas.
 
-Para una base sin usuarios, habilitar el bootstrap explicitamente:
+Para provisionar el ADMIN inicial, definir las tres variables de entorno:
 
 ```powershell
-$env:BOOTSTRAP_ADMIN_ENABLED = 'true'
-$env:BOOTSTRAP_ADMIN_EMAIL = 'admin@example.com'
-$adminCredential = Get-Credential -UserName $env:BOOTSTRAP_ADMIN_EMAIL -Message 'Clave inicial del ADMIN'
-$env:BOOTSTRAP_ADMIN_PASSWORD = $adminCredential.GetNetworkCredential().Password
+$env:INITIAL_ADMIN_NAME = 'Administrador'
+$env:INITIAL_ADMIN_EMAIL = 'admin@example.com'
+$adminCredential = Get-Credential -UserName $env:INITIAL_ADMIN_EMAIL -Message 'Clave inicial del ADMIN'
+$env:INITIAL_ADMIN_PASSWORD = $adminCredential.GetNetworkCredential().Password
 .\mvnw.cmd spring-boot:run
 ```
 
-El bootstrap crea los roles faltantes y un ADMIN con BCrypt, solo si no existe
-ningun usuario. No modifica cuentas existentes. Desactivar la opcion y retirar
-las variables de bootstrap despues del primer arranque. Los usuarios existentes
+El bootstrap lee exclusivamente estas variables del entorno del proceso y crea
+los roles faltantes y un ADMIN ACTIVO con BCrypt si ese email no existe, aunque
+existan otros usuarios. Normaliza el email y lo compara sin distinguir mayusculas.
+Si falta alguna variable o esta en blanco, el arranque continua sin crear el ADMIN.
+Si el email existe, no cambia nombre, clave, roles ni estado. Los reinicios con
+el mismo email no duplican el usuario. Una configuracion completa pero invalida
+detiene el arranque con un mensaje sin credenciales. Retirar las tres variables
+despues del primer arranque; crear nuevas cuentas desde `/api/users`, no cambiando
+el email inicial. No existe registro publico. Los usuarios existentes
 deben tener hashes BCrypt: no se convierten ni aceptan claves almacenadas en texto plano.
 
 ## Autenticacion y permisos
@@ -109,6 +116,7 @@ Los POST de creacion devuelven 201; login, GET, PUT y PATCH devuelven 200.
 | Metodo | Ruta |
 | --- | --- |
 | POST | `/api/auth/login` |
+| GET | `/api/auth/me` |
 | GET, POST | `/api/products` |
 | GET, PUT | `/api/products/{id}` |
 | PATCH | `/api/products/{id}/status` |
@@ -145,7 +153,8 @@ movimientos historicos. Los cambios de stock son nuevos movimientos trazables.
 {"email":"admin@example.com","password":"<TU_PASSWORD>"}
 ```
 
-Respuesta: `accessToken`, `tokenType: "Bearer"`, `expiresIn: 900` y `usuario`
+Respuesta: `accessToken`, `tokenType: "Bearer"`, `user` con `id`, `nombre`, `email`
+y `rol`. Por compatibilidad tambien se conservan `expiresIn: 900` y `usuario`
 sin password ni hash. Usar el token en todas las peticiones siguientes.
 
 2. **POST /api/products** como ADMIN:

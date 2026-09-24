@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Locale;
 import com.ruth.inventio.dto.LoginRequest;
 import com.ruth.inventio.dto.LoginResponse;
+import com.ruth.inventio.dto.AuthUserResponse;
+import com.ruth.inventio.security.CurrentUser;
 import com.ruth.inventio.mapper.ComercialMapper;
 import com.ruth.inventio.model.EstadoRegistro;
 import com.ruth.inventio.repository.UsuarioRepository;
@@ -25,16 +27,26 @@ public class AuthService {
     private final String audience;
     private final long ttl;
     private final String dummyHash;
-    public AuthService(UsuarioRepository usuarios, PasswordEncoder passwords, JwtEncoder encoder,
+    private final CurrentUser current;
+    public AuthService(UsuarioRepository usuarios, PasswordEncoder passwords, JwtEncoder encoder, CurrentUser current,
             @Value("${inventio.jwt.issuer}") String issuer, @Value("${inventio.jwt.audience}") String audience,
             @Value("${inventio.jwt.ttl-seconds}") long ttl) {
         if (ttl < 60 || ttl > 3600) throw new IllegalStateException("JWT_TTL_SECONDS debe estar entre 60 y 3600.");
         this.usuarios=usuarios; this.passwords=passwords; this.encoder=encoder;
+        this.current=current;
         this.issuer=issuer; this.audience=audience; this.ttl=ttl;
         this.dummyHash=passwords.encode(java.util.UUID.randomUUID().toString());
     }
     @Transactional(readOnly = true)
+    public AuthUserResponse me() {
+        return AuthUserResponse.from(ComercialMapper.usuario(current.usuario()));
+    }
+
+    @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
+        if (request.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
+            throw new BadCredentialsException("Credenciales invalidas.");
+        }
         var usuario=usuarios.findByEmailIgnoreCase(request.email().trim().toLowerCase(Locale.ROOT)).orElse(null);
         boolean matches=passwords.matches(request.password(),usuario==null?dummyHash:usuario.getPassword());
         if (!matches || usuario==null || usuario.getEstado()!=EstadoRegistro.ACTIVO || usuario.getRoles().isEmpty()) {

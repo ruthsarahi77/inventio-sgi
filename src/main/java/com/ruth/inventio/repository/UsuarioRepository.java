@@ -11,6 +11,8 @@ import com.ruth.inventio.entity.Usuario;
 import java.util.Optional;
 
 public interface UsuarioRepository extends BaseRepository<Usuario> {
+    @Query("select u.id from Usuario u where lower(u.email) = lower(:email)")
+    Optional<Long> findIdByEmailIgnoreCase(@Param("email") String email);
 @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Usuario e where e.id = :id")
     Optional<Usuario> buscarParaActualizar(@Param("id") Long id);

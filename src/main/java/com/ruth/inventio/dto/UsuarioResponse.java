@@ -9,4 +9,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 public record UsuarioResponse(Long id, String nombre, String email, EstadoRegistro estado, Set<NombreRol> roles) {
+    @com.fasterxml.jackson.annotation.JsonProperty("rol")
+    public NombreRol rol() { return AuthUserResponse.from(this).rol(); }
 }

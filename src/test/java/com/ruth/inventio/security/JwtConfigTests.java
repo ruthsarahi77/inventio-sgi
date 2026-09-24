@@ -38,7 +38,8 @@ class JwtConfigTests {
         assertEquals("inventio-api", environment.getProperty("inventio.jwt.issuer"));
         assertEquals("inventio-clients", environment.getProperty("inventio.jwt.audience"));
         assertEquals("900", environment.getProperty("inventio.jwt.ttl-seconds"));
-        assertEquals("none", environment.getProperty("spring.jpa.hibernate.ddl-auto"));
+        // Conservar la configuracion del proyecto; autenticacion no cambia el esquema.
+        assertEquals("update", environment.getProperty("spring.jpa.hibernate.ddl-auto"));
         assertEquals("never", environment.getProperty("spring.sql.init.mode"));
     }
 }
