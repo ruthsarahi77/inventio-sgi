@@ -1,179 +1,48 @@
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
-
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { router } from "expo-router";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import ScreenLayout from "../../components/ScreenLayout";
-import { Ionicons } from "@expo/vector-icons";
-import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 import { useApp } from "../../models/AppContext";
+import { useApiResource } from "../../hooks/use-api-resource";
+import { listQuotes } from "../../services/quotes";
+import { listCustomers } from "../../services/customers";
 
-interface Proforma {
-  id: number;
-  number: string;
-  client: string;
-  date: string;
-  total: number;
-  status: string;
-}
-
-const initialProformas: Proforma[] = [
-  {
-    id: 1,
-    number: "PRO-001",
-    client: "Comercial Andina",
-    date: "18/09/2026",
-    total: 250.5,
-    status: "Pendiente",
-  },
-  {
-    id: 2,
-    number: "PRO-002",
-    client: "Distribuidora del Norte",
-    date: "17/09/2026",
-    total: 480.0,
-    status: "Aprobada",
-  },
-];
-
-export default function ProformasScreen() {
+export default function QuotesScreen() {
+  const { colors, user } = useApp();
   const [search, setSearch] = useState("");
-  const { formatMoney, colors } = useApp();
-
-  const printProforma = async (proforma: Proforma) => {
-    const html = `<html><body style="font-family:Arial;padding:32px"><h1 style="color:#F58220">INVENTIO</h1><h2>${proforma.number}</h2><p>Fecha: ${proforma.date}</p><p>Cliente: ${proforma.client}</p><hr/><h2>Total: ${formatMoney(proforma.total)}</h2></body></html>`;
-    const { uri } = await Print.printToFileAsync({ html });
-    if (await Sharing.isAvailableAsync())
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: "Compartir proforma",
-      });
-    else Alert.alert("PDF generado", uri);
-  };
-
-  const filteredProformas = initialProformas.filter(
-    (proforma) =>
-      proforma.number.toLowerCase().includes(search.toLowerCase()) ||
-      proforma.client.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <ScreenLayout
-      title="Proformas"
-      subtitle="Consulta y administra las proformas"
-    >
-      {/* BUSCADOR */}
-      <TextInput
-        style={[
-          styles.search,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            color: colors.text,
-          },
-        ]}
-        placeholder="Buscar por número o cliente..."
-        value={search}
-        onChangeText={setSearch}
-      />
-
-      {/* RESUMEN */}
+  const { data, error, loading, reload } = useApiResource(useCallback(async (signal: AbortSignal) => {
+    const [quotes, customers] = await Promise.all([listQuotes(signal), listCustomers(signal)]);
+    return { quotes, customers };
+  }, []));
+  const customerName = (id: number) => data?.customers.find(item => item.id === id)?.nombre ?? "Cliente #" + id;
+  const filtered = data?.quotes.filter(quote => (quote.numero + " " + customerName(quote.clienteId)).toLowerCase().includes(search.toLowerCase()));
+  return <ScreenLayout title="Proformas" subtitle="Consulta y administra las proformas">
+    {(user?.role === "admin" || user?.role === "vendedor") && <TouchableOpacity style={styles.addButton} onPress={() => router.push("/nueva-proforma")}>
+      <Text style={styles.addButtonText}>Nueva proforma</Text>
+    </TouchableOpacity>}
+    {loading && <ActivityIndicator color="#F58220" />}
+    {error && <><Text accessibilityRole="alert" style={{ color: "#D94343" }}>{error}</Text><TouchableOpacity onPress={() => void reload()}><Text style={{ color: colors.text }}>Reintentar</Text></TouchableOpacity></>}
+    {data && !loading && !error && <>
+      <TextInput style={[styles.search, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]} placeholder="Buscar por número o cliente..."
+        placeholderTextColor={colors.secondary} value={search} onChangeText={setSearch} />
       <View style={[styles.summary, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.summaryLabel, { color: colors.secondary }]}>
-          Proformas registradas
-        </Text>
-
-        <Text style={styles.summaryNumber}>{initialProformas.length}</Text>
+        <Text style={{ color: colors.secondary }}>Proformas registradas</Text><Text style={styles.summaryNumber}>{data.quotes.length}</Text>
       </View>
+      {filtered?.map(quote => <View key={quote.id} style={[styles.card, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.proformaNumber, { color: colors.text }]}>{quote.numero}</Text>
+        <Text style={styles.date}>{new Date(quote.fecha).toLocaleString()}</Text>
+        <Text style={{ color: colors.secondary }}>{quote.estado}</Text>
+        <View style={styles.divider} />
+        <Text style={[styles.client, { color: colors.text }]}>{customerName(quote.clienteId)}</Text>
+        <Text style={styles.total}>Total: {quote.total.toFixed(2)}</Text>
+        <TouchableOpacity style={styles.detailButton} onPress={() => router.push({ pathname: "/proforma/[id]", params: { id: quote.id } })}>
+          <Text style={styles.detailButtonText}>Ver detalle y PDF</Text>
+        </TouchableOpacity>
+      </View>)}
+      {filtered?.length === 0 && <Text style={{ color: colors.secondary }}>{data.quotes.length ? "No se encontraron proformas." : "No hay proformas registradas."}</Text>}
+    </>}
 
-      {/* TÍTULO */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Listado de proformas
-      </Text>
-
-      {/* LISTA */}
-      {filteredProformas.map((proforma) => (
-        <View
-          key={proforma.id}
-          style={[styles.card, { backgroundColor: colors.surface }]}
-        >
-          <View style={styles.cardHeader}>
-            <View>
-              <Text style={[styles.proformaNumber, { color: colors.text }]}>
-                {proforma.number}
-              </Text>
-
-              <Text style={styles.date}>{proforma.date}</Text>
-            </View>
-
-            <View
-              style={[
-                styles.status,
-                proforma.status === "Aprobada"
-                  ? styles.approved
-                  : styles.pending,
-              ]}
-            >
-              <Text style={styles.statusText}>{proforma.status}</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.label}>Cliente</Text>
-          <Text style={[styles.client, { color: colors.text }]}>
-            {proforma.client}
-          </Text>
-
-          <View style={styles.totalContainer}>
-            <Text style={styles.label}>Total</Text>
-
-            <Text style={styles.total}>{formatMoney(proforma.total)}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.detailButton}
-            onPress={() =>
-              Alert.alert(
-                "Detalle de proforma",
-                `${proforma.number}\nCliente: ${proforma.client}\nTotal: ${formatMoney(proforma.total)}`,
-              )
-            }
-          >
-            <Ionicons name="eye-outline" size={17} color="#F58220" />
-            <Text style={styles.detailButtonText}>Ver detalles</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.pdfButton}
-            onPress={() => void printProforma(proforma)}
-          >
-            <Ionicons name="print-outline" size={17} color="#FFFFFF" />
-            <Text style={styles.pdfButtonText}>PDF / Imprimir</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-
-      {filteredProformas.length === 0 && (
-        <Text style={styles.empty}>No se encontraron proformas.</Text>
-      )}
-
-      {/* NUEVA PROFORMA */}
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => router.push("/nueva-proforma")}
-      >
-        <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-        <Text style={styles.addButtonText}>Nueva proforma</Text>
-      </TouchableOpacity>
-    </ScreenLayout>
-  );
+  </ScreenLayout>;
 }
 
 const styles = StyleSheet.create({
@@ -334,6 +203,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     marginTop: 5,
+    marginBottom: 20,
   },
 
   addButtonText: {

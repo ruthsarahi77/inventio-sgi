@@ -7,6 +7,8 @@ import { useApp } from "../../models/AppContext";
 export default function MasScreen() {
   const { colors, user } = useApp();
   const options = [
+    { label: "Productos", icon: "cube-outline" as const, route: "/tabs/productos" },
+    { label: "Inventario", icon: "layers-outline" as const, route: "/tabs/stock" },
     {
       label: "Clientes",
       icon: "people-outline" as const,
@@ -23,7 +25,7 @@ export default function MasScreen() {
       route: "/mis-ventas",
     },
     { label: "Mi perfil", icon: "person-outline" as const, route: "/perfil" },
-  ];
+  ] as const;
   return (
     <ScreenLayout title="Más" subtitle="Accesos y administración">
       <View style={[styles.roleCard, { backgroundColor: colors.surface }]}>
@@ -42,7 +44,7 @@ export default function MasScreen() {
           </Text>
           <Text style={[styles.roleText, { color: colors.secondary }]}>
             {user?.role === "admin"
-              ? "Acceso total a la empresa"
+              ? "Administra tus operaciones"
               : "Gestiona tus operaciones"}
           </Text>
         </View>

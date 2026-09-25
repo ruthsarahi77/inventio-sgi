@@ -1,128 +1,37 @@
-import { View, Text, TextInput, StyleSheet } from "react-native";
-
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { router } from "expo-router";
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import ScreenLayout from "../../components/ScreenLayout";
 import { useApp } from "../../models/AppContext";
+import { useApiResource } from "../../hooks/use-api-resource";
+import { listSales } from "../../services/sales";
+import { listCustomers } from "../../services/customers";
 
-interface Sale {
-  id: number;
-  number: string;
-  client: string;
-  date: string;
-  total: number;
-  status: string;
-}
-
-const sales: Sale[] = [
-  {
-    id: 1,
-    number: "VEN-001",
-    client: "Comercial Andina",
-    date: "18/09/2026",
-    total: 250.5,
-    status: "Pagada",
-  },
-  {
-    id: 2,
-    number: "VEN-002",
-    client: "Distribuidora del Norte",
-    date: "18/09/2026",
-    total: 480.0,
-    status: "Pendiente",
-  },
-  {
-    id: 3,
-    number: "VEN-003",
-    client: "Comercial Andina",
-    date: "17/09/2026",
-    total: 125.75,
-    status: "Pendiente",
-  },
-];
-
-export default function VentasScreen() {
+export default function SalesScreen({ mine = false }: { mine?: boolean }) {
+  const { colors, user } = useApp();
   const [search, setSearch] = useState("");
-  const { formatMoney, colors } = useApp();
-
-  const filteredSales = sales.filter(
-    (sale) =>
-      sale.number.toLowerCase().includes(search.toLowerCase()) ||
-      sale.client.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <ScreenLayout title="Ventas" subtitle="Consulta y administra las ventas">
-      {/* BUSCADOR */}
-      <TextInput
-        style={[
-          styles.search,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            color: colors.text,
-          },
-        ]}
-        placeholder="Buscar por número o cliente..."
-        value={search}
-        onChangeText={setSearch}
-      />
-
-      {/* RESUMEN */}
-      <View style={[styles.summary, { backgroundColor: colors.surface }]}>
-        <Text style={styles.summaryLabel}>Ventas registradas</Text>
-
-        <Text style={styles.summaryNumber}>{sales.length}</Text>
-
-        <Text style={styles.summaryLabel}>Total vendido</Text>
-
-        <Text style={styles.summaryTotal}>
-          {formatMoney(sales.reduce((total, sale) => total + sale.total, 0))}
-        </Text>
-      </View>
-
-      {/* LISTADO */}
-      <Text style={styles.sectionTitle}>Historial de ventas</Text>
-
-      {filteredSales.map((sale) => (
-        <View key={sale.id} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View>
-              <Text style={styles.saleNumber}>{sale.number}</Text>
-
-              <Text style={styles.date}>{sale.date}</Text>
-            </View>
-
-            <View
-              style={[
-                styles.status,
-                sale.status === "Pagada" ? styles.paid : styles.pending,
-              ]}
-            >
-              <Text style={styles.statusText}>{sale.status}</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.label}>Cliente</Text>
-
-          <Text style={[styles.client, { color: colors.text }]}>
-            {sale.client}
-          </Text>
-
-          <View style={styles.totalContainer}>
-            <Text style={styles.label}>Total de venta</Text>
-
-            <Text style={styles.total}>{formatMoney(sale.total)}</Text>
-          </View>
-        </View>
-      ))}
-
-      {filteredSales.length === 0 && (
-        <Text style={styles.empty}>No se encontraron ventas.</Text>
-      )}
-    </ScreenLayout>
-  );
+  const { data, loading, error, reload } = useApiResource(useCallback(async (signal: AbortSignal) => {
+    const [sales, customers] = await Promise.all([listSales(signal), listCustomers(signal)]);
+    return { sales: mine ? sales.filter(sale => sale.vendedorId === user?.id) : sales, customers };
+  }, [mine, user?.id]));
+  const customerName = (id: number) => data?.customers.find(customer => customer.id === id)?.nombre ?? "Cliente #" + id;
+  const rows = data?.sales.slice().sort((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha)).filter(sale => (sale.numero + " " + customerName(sale.clienteId)).toLowerCase().includes(search.toLowerCase())) ?? [];
+  return <ScreenLayout title={mine ? "Mis ventas" : "Ventas"} subtitle="Consulta y administra las ventas">
+    <TouchableOpacity onPress={() => router.push("/nueva-venta")} style={{ backgroundColor: "#F58220", padding: 16, borderRadius: 12, marginBottom: 16 }}><Text style={{ color: "white", fontWeight: "bold" }}>Nueva venta</Text></TouchableOpacity>
+    <TextInput style={[styles.search, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]} placeholder="Buscar venta o cliente" placeholderTextColor={colors.secondary} value={search} onChangeText={setSearch} />
+    {loading && <ActivityIndicator color="#F58220" />}
+    {error && <><Text accessibilityRole="alert" style={{ color: "#D94343" }}>{error}</Text><TouchableOpacity onPress={() => void reload()}><Text style={{ color: colors.text }}>Reintentar</Text></TouchableOpacity></>}
+    {data && !loading && !error && <>
+      {rows.length === 0 && <Text style={{ color: colors.secondary }}>No se encontraron ventas.</Text>}
+      {rows.map(sale => <TouchableOpacity key={sale.id} onPress={() => router.push({ pathname: "/venta/[id]", params: { id: sale.id } })} style={[styles.card, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.saleNumber, { color: colors.text }]}>{sale.numero}</Text>
+        <Text style={styles.date}>{new Date(sale.fecha).toLocaleString()} · {sale.estado}</Text>
+        <Text style={[styles.client, { color: colors.text }]}>{customerName(sale.clienteId)}</Text>
+        <Text style={styles.total}>Total: {sale.total.toFixed(2)}</Text>
+        <Text style={{ color: colors.text }}>Abonado: {sale.totalAbonado.toFixed(2)} · Saldo: {sale.saldo.toFixed(2)}</Text>
+      </TouchableOpacity>)}
+    </>}
+  </ScreenLayout>;
 }
 
 const styles = StyleSheet.create({

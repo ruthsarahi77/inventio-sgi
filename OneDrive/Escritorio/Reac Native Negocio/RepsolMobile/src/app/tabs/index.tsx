@@ -1,254 +1,72 @@
+import FormScroll from "../../components/FormScroll";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useState } from "react";
+import { Redirect, router } from "expo-router";
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, useWindowDimensions } from "react-native";
+import { useCallback, useState } from "react";
 import { useApp } from "../../models/AppContext";
-import { useProducts } from "../../models/ProductContext";
+import { useApiResource } from "../../hooks/use-api-resource";
+import { getDashboard } from "../../services/dashboard";
 
 export default function HomeScreen() {
-  const { formatMoney, themeMode } = useApp();
-  const { products } = useProducts();
-  const [period, setPeriod] = useState<
-    "Este mes" | "Este año" | "Últimos 7 días"
-  >("Este mes");
-  const dark = themeMode === "dark";
-  const colors = {
-    background: dark ? "#17191C" : "#F4F6F7",
-    surface: dark ? "#23262B" : "#FFFFFF",
-    text: dark ? "#F5F5F5" : "#202124",
-    secondary: dark ? "#AEB4BC" : "#69727D",
-    border: dark ? "#363A42" : "#E6E9EC",
-  };
-  const lowStock = products.filter((product) => product.stock <= 5).length;
-  const chartValues =
-    period === "Este año"
-      ? [58, 67, 61, 78, 72, 88, 82, 96]
-      : period === "Últimos 7 días"
-        ? [35, 52, 44, 69, 58, 76, 68]
-        : [42, 58, 50, 70, 62, 84, 76, 95];
-
-  const cyclePeriod = () => {
-    setPeriod((current) =>
-      current === "Este mes"
-        ? "Este año"
-        : current === "Este año"
-          ? "Últimos 7 días"
-          : "Este mes",
-    );
-  };
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        <View style={styles.topBar}>
-          <View style={styles.brandRow}>
-            <Image
-              source={require("../../../assets/images/icon.png")}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.brand}>INVENTIO</Text>
-              <Text style={styles.brandCaption}>DISTRIBUIDOR REPSOL</Text>
-            </View>
-          </View>
-          <View style={styles.topActions}>
-            <TouchableOpacity>
-              <Ionicons
-                name="notifications-outline"
-                size={23}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatar}
-              onPress={() => router.push("/perfil")}
-            >
-              <Ionicons name="person-outline" size={18} color="#F58220" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.headingRow}>
-          <View>
-            <Text style={[styles.screenTitle, { color: colors.text }]}>
-              Resumen Comercial
-            </Text>
-            <Text style={[styles.date, { color: colors.secondary }]}>
-              Hoy, 21 de septiembre de 2026
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.periodButton,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-            onPress={cyclePeriod}
-          >
-            <Text style={[styles.periodText, { color: colors.text }]}>
-              {period}
-            </Text>
-            <Ionicons name="chevron-down" size={15} color={colors.secondary} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.metricGrid}>
-          <Metric
-            icon="water-outline"
-            label="Litros vendidos"
-            value="48.650 L"
-            colors={colors}
-            onPress={() => router.push("/tabs/ventas")}
-          />
-          <Metric
-            icon="cash-outline"
-            label="Ventas"
-            value={formatMoney(284750)}
-            colors={colors}
-            onPress={() => router.push("/tabs/ventas")}
-          />
-          <TouchableOpacity
-            style={[styles.goalCard, { backgroundColor: "#F58220" }]}
-            onPress={() => router.push("/tabs/ventas")}
-          >
-            <Text style={styles.goalLabel}>Cumplimiento Meta</Text>
-            <Text style={styles.goalValue}>88,5%</Text>
-            <Text style={styles.goalSmall}>48.650 L / 55.000 L</Text>
-            <View style={styles.goalTrack}>
-              <View style={styles.goalProgress} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={[
-            styles.panel,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.panelHeader}>
-            <View>
-              <Text style={[styles.panelTitle, { color: colors.text }]}>
-                Litros vendidos
-              </Text>
-              <Text style={[styles.panelSubtitle, { color: colors.secondary }]}>
-                {period}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push("/tabs/ventas")}>
-              <Ionicons name="trending-up-outline" size={21} color="#27864A" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.chart}>
-            {chartValues.map((height, index) => (
-              <View key={index} style={styles.chartColumn}>
-                <View style={[styles.chartBar, { height: height * 0.72 }]} />
-                <Text style={[styles.chartLabel, { color: colors.secondary }]}>
-                  {
-                    ["Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep"][
-                      index
-                    ]
-                  }
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.twoColumns}>
-          <TouchableOpacity
-            style={[
-              styles.smallMetric,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-            onPress={() => router.push("/tabs/recibos")}
-          >
-            <View style={styles.smallIcon}>
-              <Ionicons name="wallet-outline" size={19} color="#27864A" />
-            </View>
-            <Text style={[styles.smallLabel, { color: colors.secondary }]}>
-              Cobrado este mes
-            </Text>
-            <Text style={styles.greenValue}>{formatMoney(148650)}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.smallMetric,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-            onPress={() => router.push("/tabs/recibos")}
-          >
-            <View style={styles.smallIconRed}>
-              <Ionicons name="time-outline" size={19} color="#D94343" />
-            </View>
-            <Text style={[styles.smallLabel, { color: colors.secondary }]}>
-              Pendiente de cobro
-            </Text>
-            <Text style={styles.redValue}>{formatMoney(86420)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={[
-            styles.panel,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.panelHeader}>
-            <Text style={[styles.panelTitle, { color: colors.text }]}>
-              Últimas actividades
-            </Text>
-            <TouchableOpacity onPress={() => router.push("/tabs/proformas")}>
-              <Text style={styles.link}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
-          <Activity
-            icon="document-text-outline"
-            title="Proforma #P-248"
-            detail="Cliente: Distribuidora del Norte"
-            time="Hace 2 h"
-            colors={colors}
-            onPress={() => router.push("/tabs/proformas")}
-          />
-          <Activity
-            icon="wallet-outline"
-            title="Recibo #R-156"
-            detail="Cliente: Inversiones Paredes"
-            time="Hace 4 h"
-            colors={colors}
-            onPress={() => router.push("/tabs/recibos")}
-          />
-          <Activity
-            icon="cube-outline"
-            title={`${products.length} productos registrados`}
-            detail={`${lowStock} con stock bajo`}
-            time="Hoy"
-            colors={colors}
-            onPress={() => router.push("/tabs/stock")}
-          />
-        </View>
-      </ScrollView>
-    </View>
-  );
+  const { user } = useApp();
+  return user?.role === "admin" ? <Dashboard /> : <Redirect href="/tabs/stock" />;
 }
-
+function Dashboard() {
+  const { colors } = useApp();
+  const { width } = useWindowDimensions();
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [month, setMonth] = useState(String(new Date().getMonth() + 1));
+  // Omit both parameters initially: Spring Boot chooses its current month/time zone.
+  const [period, setPeriod] = useState<{ year: number; month: number }>();
+  const [filterError, setFilterError] = useState("");
+  const { data, loading, error, reload } = useApiResource(useCallback((signal: AbortSignal) => getDashboard(period, signal), [period]));
+  const apply = () => {
+    if (!/^\d{1,4}$/.test(year) || !/^\d{1,2}$/.test(month) || Number(year) < 1 || Number(month) < 1 || Number(month) > 12) {
+      setFilterError("Introduce un mes de 1 a 12 y un año de 1 a 9999."); return;
+    }
+    setFilterError(""); setPeriod({ year: Number(year), month: Number(month) });
+  };
+  const cards = data ? [
+    { label: "Litros vendidos", value: data.litrosVendidosMes, suffix: " L", route: "/tabs/ventas" },
+    { label: "Meta Repsol", value: data.metaRepsol, suffix: " L", route: "/tabs/ventas" },
+    { label: "Cumplimiento de meta", value: data.cumplimientoMeta, suffix: "%", route: "/tabs/ventas" },
+    { label: "Ventas PEN", value: data.totalVentasMes, suffix: " PEN", route: "/tabs/ventas" },
+    { label: "Ventas USD", value: data.totalVentasUSD, suffix: " USD", route: "/tabs/ventas" },
+    { label: "Saldo pendiente de ventas del mes", value: data.saldoPendienteTotal, suffix: "", route: "/tabs/ventas" },
+    { label: "Productos activos (actual)", value: data.totalProductos, suffix: "", route: "/tabs/productos" },
+    { label: "Productos con stock bajo", value: data.productosStockBajo, suffix: "", route: "/tabs/stock" },
+    { label: "Ventas de hoy en el mes seleccionado", value: data.ventasHoy, suffix: "", route: "/tabs/ventas" },
+    { label: "Recibos de hoy en el mes seleccionado", value: data.recibosHoy, suffix: "", route: "/tabs/recibos" },
+  ] as const : [];
+  return <View style={[styles.container, { backgroundColor: colors.background }]}><FormScroll contentContainerStyle={styles.content}>
+    <View style={styles.topBar}><View style={styles.brandRow}><Image source={require("../../../assets/images/icon.png")} style={styles.brandLogo} /><Text style={styles.brand}>INVENTIO</Text></View><TouchableOpacity accessibilityLabel="Mi perfil" style={styles.avatar} onPress={() => router.push("/perfil")}><Ionicons name="person-outline" size={18} color="#F58220" /></TouchableOpacity></View>
+    <Text style={[styles.screenTitle, { color: colors.text }]}>Resumen Comercial</Text>
+    <Text style={[styles.date, { color: colors.secondary }]}>{period ? "Mes " + period.month + " / " + period.year : "Mes vigente del servidor"}</Text>
+    <View style={{ margin: 20, padding: 16, borderRadius: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, gap: 14 }}>
+      <Text style={{ color: colors.text, fontWeight: "bold", fontSize: 16 }}>Período del resumen</Text>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1, gap: 6 }}><Text style={{ color: colors.secondary }}>Mes (1–12)</Text><TextInput accessibilityLabel="Mes" value={month} onChangeText={setMonth} keyboardType="number-pad" maxLength={2} style={{ color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 12, minHeight: 48 }} /></View>
+        <View style={{ flex: 1, gap: 6 }}><Text style={{ color: colors.secondary }}>Año</Text><TextInput accessibilityLabel="Año" value={year} onChangeText={setYear} keyboardType="number-pad" maxLength={4} style={{ color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 12, minHeight: 48 }} /></View>
+      </View>
+      <TouchableOpacity onPress={apply} style={{ backgroundColor: "#F58220", padding: 14, borderRadius: 10, alignItems: "center" }}><Text style={{ color: "white", fontWeight: "bold" }}>Aplicar período</Text></TouchableOpacity>
+      <TouchableOpacity onPress={() => { const now = new Date(); setYear(String(now.getFullYear())); setMonth(String(now.getMonth() + 1)); setFilterError(""); if (period) setPeriod(undefined); else void reload(); }} style={{ padding: 8, alignItems: "center" }}><Text style={styles.link}>Mes vigente</Text></TouchableOpacity>
+    </View>
+    {!!filterError && <Text accessibilityRole="alert" style={{ color: "#D94343" }}>{filterError}</Text>}
+    {loading && <ActivityIndicator color="#F58220" />}
+    {error && <><Text accessibilityRole="alert" style={{ color: "#D94343" }}>{error}</Text><TouchableOpacity onPress={() => void reload()}><Text style={styles.link}>Reintentar</Text></TouchableOpacity></>}
+    {data && !loading && !error && <View style={styles.metricGrid}>{cards.filter(card => card.value !== null).map(card => <Metric key={card.label} icon="cash-outline" label={card.label} value={card.value!.toLocaleString(undefined, { maximumFractionDigits: 2 }) + card.suffix} colors={colors} wide={width >= 420} onPress={() => router.push(card.route)} />)}</View>}
+    {data && !loading && !error && <Text style={{ color: colors.secondary }}>Solo se muestran los indicadores disponibles del servidor, incluidos sus valores cero.</Text>}
+  </FormScroll></View>;
+}
 function Metric({
+  wide,
   icon,
   label,
   value,
   colors,
   onPress,
 }: {
+  wide: boolean;
   icon: "water-outline" | "cash-outline";
   label: string;
   value: string;
@@ -259,6 +77,7 @@ function Metric({
     <TouchableOpacity
       style={[
         styles.metric,
+        { width: wide ? "48%" : "100%" },
         { backgroundColor: colors.surface, borderColor: colors.border },
       ]}
       onPress={onPress}
@@ -270,42 +89,6 @@ function Metric({
         {label}
       </Text>
       <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function Activity({
-  icon,
-  title,
-  detail,
-  time,
-  colors,
-  onPress,
-}: {
-  icon: "document-text-outline" | "wallet-outline" | "cube-outline";
-  title: string;
-  detail: string;
-  time: string;
-  colors: { text: string; secondary: string };
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={styles.activity} onPress={onPress}>
-      <View style={styles.activityIcon}>
-        <Ionicons name={icon} size={17} color="#F58220" />
-      </View>
-      <View style={styles.activityText}>
-        <Text style={[styles.activityTitle, { color: colors.text }]}>
-          {title}
-        </Text>
-        <Text style={[styles.activityDetail, { color: colors.secondary }]}>
-          {detail}
-        </Text>
-      </View>
-      <Text style={[styles.activityTime, { color: colors.secondary }]}>
-        {time}
-      </Text>
-      <Ionicons name="chevron-forward" size={16} color={colors.secondary} />
     </TouchableOpacity>
   );
 }
@@ -370,9 +153,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   periodText: { fontSize: 11, fontWeight: "600" },
-  metricGrid: { paddingHorizontal: 20, flexDirection: "row", gap: 8 },
+  metricGrid: { paddingHorizontal: 20, flexDirection: "row", flexWrap: "wrap", gap: 12 },
   metric: {
-    flex: 1,
+    flexGrow: 1,
     minHeight: 119,
     borderWidth: 1,
     borderRadius: 11,
@@ -387,8 +170,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  metricLabel: { fontSize: 10 },
-  metricValue: { fontSize: 16, fontWeight: "800", marginTop: 4 },
+  metricLabel: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+  metricValue: { fontSize: 23, fontWeight: "800", marginTop: 4 },
   goalCard: { flex: 1.15, minHeight: 119, borderRadius: 11, padding: 12 },
   goalLabel: { color: "#FFFFFF", fontSize: 10, fontWeight: "700" },
   goalValue: {

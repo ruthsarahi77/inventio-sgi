@@ -4,65 +4,42 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
 import { router } from "expo-router";
-import { useProducts } from "../../models/ProductContext";
+import { listInventory } from "../../services/inventory";
+import { useApiResource } from "../../hooks/use-api-resource";
 import { useApp } from "../../models/AppContext";
 
-interface Product {
-  id: number;
-  name: string;
-  code: string;
-  stock: number;
-  price: number;
-}
-
-const products: Product[] = [
-  {
-    id: 1,
-    name: "Aceite de motor",
-    code: "REP-001",
-    stock: 25,
-    price: 18.5,
-  },
-  {
-    id: 2,
-    name: "Lubricante industrial",
-    code: "REP-002",
-    stock: 12,
-    price: 24.75,
-  },
-  {
-    id: 3,
-    name: "Grasa multipropósito",
-    code: "REP-003",
-    stock: 5,
-    price: 12.0,
-  },
-];
-
 export default function StockScreen() {
-  const { products } = useProducts();
-  const { formatMoney, colors } = useApp();
+  const { colors } = useApp();
+  const { data, loading, error, reload } = useApiResource(listInventory);
+  const products = data ?? [];
   const [search, setSearch] = useState("");
 
   const filteredProducts = products.filter(
     (product) =>
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.code.toLowerCase().includes(search.toLowerCase()),
+      product.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      product.codigo.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const lowStockCount = products.filter((product) => product.stock <= 5).length;
+  const lowStockCount = products.filter((product) => product.stockActual <= 5).length;
 
   return (
     <ScreenLayout
-      title="Productos"
-      subtitle="Consulta y administra el inventario"
+      title="Inventario"
+      subtitle="Consulta el inventario"
+      showBack={false}
     >
+      <TouchableOpacity onPress={() => router.push("/tabs/productos")}><Text style={{ color: "#F58220", marginBottom: 16 }}>Ver catálogo de productos</Text></TouchableOpacity>
+      {loading && <ActivityIndicator color="#F58220" />}
+      {error && <View><Text accessibilityRole="alert" style={{ color: "#D94343" }}>{error}</Text>
+        <TouchableOpacity onPress={() => void reload()}><Text style={{ color: colors.text }}>Reintentar</Text></TouchableOpacity></View>}
+      {!loading && !error && <>
       {/* BUSCADOR */}
       <View
         style={[
@@ -132,8 +109,9 @@ export default function StockScreen() {
 
       {/* LISTA DE PRODUCTOS */}
       {filteredProducts.map((product) => (
-        <View
-          key={product.id}
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: "/inventario/[id]", params: { id: product.idProducto } })}
+          key={product.idProducto}
           style={[styles.card, { backgroundColor: colors.surface }]}
         >
           {/* ENCABEZADO DE LA TARJETA */}
@@ -144,10 +122,10 @@ export default function StockScreen() {
 
             <View style={styles.productInfo}>
               <Text style={[styles.productName, { color: colors.text }]}>
-                {product.name}
+                {product.nombre}
               </Text>
 
-              <Text style={styles.code}>Código: {product.code}</Text>
+              <Text style={styles.code}>Código: {product.codigo}</Text>
             </View>
 
             <Ionicons name="chevron-forward" size={20} color="#BBBBBB" />
@@ -166,26 +144,26 @@ export default function StockScreen() {
                 <Ionicons
                   name="layers-outline"
                   size={17}
-                  color={product.stock <= 5 ? "#D94343" : "#27864A"}
+                  color={product.stockActual <= 5 ? "#D94343" : "#27864A"}
                 />
 
                 <Text
                   style={[
                     styles.stock,
-                    product.stock <= 5 && styles.lowStockText,
+                    product.stockActual <= 5 && styles.lowStockText,
                   ]}
                 >
-                  {product.stock} unidades
+                  {product.stockActual} {product.unidad ?? "unidades"}
                 </Text>
               </View>
             </View>
 
             <View style={styles.priceContainer}>
               <Text style={[styles.label, { color: colors.secondary }]}>
-                Precio unitario
+                Costo unitario
               </Text>
 
-              <Text style={styles.price}>{formatMoney(product.price)}</Text>
+              <Text style={styles.price}>{product.costoUnitario.toFixed(2)}</Text>
             </View>
           </View>
 
@@ -193,31 +171,31 @@ export default function StockScreen() {
           <View
             style={[
               styles.statusBadge,
-              product.stock <= 5 ? styles.statusLow : styles.statusAvailable,
+              product.stockActual <= 5 ? styles.statusLow : styles.statusAvailable,
             ]}
           >
             <Ionicons
               name={
-                product.stock <= 5
+                product.stockActual <= 5
                   ? "alert-circle-outline"
                   : "checkmark-circle-outline"
               }
               size={16}
-              color={product.stock <= 5 ? "#D94343" : "#27864A"}
+              color={product.stockActual <= 5 ? "#D94343" : "#27864A"}
             />
 
             <Text
               style={[
                 styles.statusText,
-                product.stock <= 5
+                product.stockActual <= 5
                   ? styles.statusLowText
                   : styles.statusAvailableText,
               ]}
             >
-              {product.stock <= 5 ? "Stock bajo" : "Disponible"}
+              {product.stockActual <= 5 ? "Stock bajo" : "Disponible"}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
 
       {/* MENSAJE CUANDO NO HAY RESULTADOS */}
@@ -233,16 +211,7 @@ export default function StockScreen() {
         </View>
       )}
 
-      {/* BOTÓN NUEVO PRODUCTO */}
-      <TouchableOpacity
-        style={styles.addButton}
-        activeOpacity={0.8}
-        onPress={() => router.push("/nuevo-producto")}
-      >
-        <Ionicons name="add-circle-outline" size={23} color="#FFFFFF" />
-
-        <Text style={styles.addButtonText}>Nuevo producto</Text>
-      </TouchableOpacity>
+      </>}
     </ScreenLayout>
   );
 }

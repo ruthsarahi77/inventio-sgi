@@ -1,33 +1,29 @@
-import { createContext, ReactNode, useContext, useState } from "react";
-import * as LocalAuthentication from "expo-local-authentication";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
+import * as auth from "../services/auth";
+import { HttpError, setAccessToken, setUnauthorizedHandler } from "../services/http";
+import { readToken, writeToken } from "../storage/session";
+import type { AuthUserResponse } from "./api";
 
 export type UserRole = "admin" | "vendedor";
-export type Currency = "PEN" | "USD";
 export type ThemeMode = "light" | "dark";
 
 export interface AppUser {
+  id: number;
   name: string;
-  username: string;
   email: string;
   role: UserRole;
-  photoUri?: string;
 }
 
 interface AppContextValue {
+  status: "loading" | "authenticated" | "unauthenticated";
+  sessionError: string | null;
+  restoreSession: () => Promise<void>;
   user: AppUser | null;
   themeMode: ThemeMode;
-  currency: Currency;
-  biometricEnabled: boolean;
-  signIn: (role: UserRole, credentials?: Partial<AppUser>) => void;
-  signOut: () => void;
-  updateProfile: (changes: Partial<AppUser>) => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
   setThemeMode: (mode: ThemeMode) => void;
-  setCurrency: (currency: Currency) => void;
-  authenticateBiometric: () => Promise<boolean>;
-  toggleBiometric: () => Promise<boolean>;
-  formatMoney: (amount: number, valueCurrency?: Currency) => string;
-  convertToBaseCurrency: (amount: number, amountCurrency: Currency) => number;
-  exchangeRate: number;
   colors: {
     background: string;
     surface: string;
@@ -40,12 +36,20 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
+function appUser(value: AuthUserResponse): AppUser {
+  const roles = { ADMIN: "admin", VENDEDOR: "vendedor" } as const;
+  if (!value || !roles[value.rol] || !Number.isInteger(value.id)) {
+    throw new Error("La API devolvió un usuario o rol no válido.");
+  }
+  return { id: value.id, name: value.nombre, email: value.email, role: roles[value.rol] };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const exchangeRate = 3.75;
   const [user, setUser] = useState<AppUser | null>(null);
+  const [status, setStatus] = useState<AppContextValue["status"]>("loading");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const generation = useRef(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
-  const [currency, setCurrency] = useState<Currency>("PEN");
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const colors =
     themeMode === "dark"
       ? {
@@ -65,62 +69,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
           mutedSurface: "#FFF0E2",
         };
 
-  const signIn = (role: UserRole, credentials: Partial<AppUser> = {}) => {
-    setUser({
-      name: role === "admin" ? "Administrador Inventio" : "Vendedor REPSOL",
-      username: role === "admin" ? "admin" : "vendedor",
-      email: role === "admin" ? "admin@inventio.pe" : "vendedor@inventio.pe",
-      role,
-      ...credentials,
-    });
-  };
+  const signOut = useCallback(async () => {
+    generation.current++;
+    setAccessToken(null);
+    setUser(null);
+    setStatus("unauthenticated");
+    setSessionError(null);
+    await writeToken(null).catch(() => setSessionError("No se pudo eliminar la sesión del almacenamiento seguro. Intenta cerrar sesión nuevamente."));
+  }, []);
 
-  const authenticateBiometric = async () => {
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!compatible || !enrolled) return false;
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Confirma tu identidad para continuar",
-      fallbackLabel: "Usar contraseña",
-    });
-    return result.success;
-  };
-
-  const toggleBiometric = async () => {
-    if (biometricEnabled) {
-      setBiometricEnabled(false);
-      return true;
+  const restoreSession = useCallback(async () => {
+    const attempt = ++generation.current;
+    try {
+      const token = await readToken();
+      if (attempt !== generation.current) return;
+      setSessionError(null);
+      if (!token) { setStatus("unauthenticated"); return; }
+      setAccessToken(token);
+      const restored = appUser(await auth.me());
+      if (attempt !== generation.current) return;
+      setUser(restored);
+      setStatus("authenticated");
+    } catch (error) {
+      if (attempt !== generation.current) return;
+      if ((error instanceof HttpError && error.status === 401) || error instanceof auth.UnsupportedRoleError) {
+        signOut();
+        if (error instanceof auth.UnsupportedRoleError) setSessionError(error.message);
+        return;
+      }
+      setAccessToken(null);
+      // A network/server failure must not erase a potentially valid stored token.
+      setSessionError(error instanceof Error ? error.message : "No se pudo validar la sesión.");
     }
-    const authenticated = await authenticateBiometric();
-    if (authenticated) setBiometricEnabled(true);
-    return authenticated;
+  }, [signOut]);
+
+  useEffect(() => {
+    const lifecycle = generation;
+    let active = true;
+    setUnauthorizedHandler(signOut);
+    // Start after mounting; a discarded Strict Mode mount must not restore a session.
+    void Promise.resolve().then(() => { if (active) return restoreSession(); });
+    return () => { active = false; lifecycle.current++; setUnauthorizedHandler(); setAccessToken(null); };
+  }, [restoreSession, signOut]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active" && status === "authenticated") {
+        setStatus("loading");
+        void restoreSession();
+      }
+    });
+    return () => subscription.remove();
+  }, [status, restoreSession]);
+
+  const signIn = async (email: string, password: string) => {
+    const attempt = ++generation.current;
+    setSessionError(null);
+    const result = await auth.login(email, password);
+    if (attempt !== generation.current) return;
+    const signedIn = appUser(result.user);
+    if (!result.accessToken || result.tokenType !== "Bearer") throw new Error("Respuesta de autenticación inválida.");
+    await writeToken(result.accessToken);
+    if (attempt !== generation.current) return;
+    setAccessToken(result.accessToken);
+    setUser(signedIn);
+    setStatus("authenticated");
   };
 
   return (
     <AppContext.Provider
       value={{
+        status,
+        sessionError,
+        restoreSession,
         user,
         themeMode,
-        currency,
-        biometricEnabled,
         signIn,
-        signOut: () => setUser(null),
-        updateProfile: (changes) =>
-          setUser((current) =>
-            current ? { ...current, ...changes } : current,
-          ),
+        signOut,
         setThemeMode,
-        setCurrency,
-        authenticateBiometric,
-        toggleBiometric,
-        formatMoney: (amount, valueCurrency = currency) => {
-          const converted =
-            valueCurrency === "USD" ? amount / exchangeRate : amount;
-          return `${valueCurrency === "PEN" ? "S/" : "$"} ${converted.toFixed(2)}`;
-        },
-        convertToBaseCurrency: (amount, amountCurrency) =>
-          amountCurrency === "USD" ? amount * exchangeRate : amount,
-        exchangeRate,
         colors,
       }}
     >

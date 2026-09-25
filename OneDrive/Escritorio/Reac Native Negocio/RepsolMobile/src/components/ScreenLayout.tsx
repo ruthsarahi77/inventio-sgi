@@ -1,13 +1,12 @@
+import FormScroll from "./FormScroll";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  Image,
 } from "react-native";
 
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import type { ReactNode } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../models/AppContext";
@@ -26,6 +25,7 @@ export default function ScreenLayout({
   showBack = true,
 }: ScreenLayoutProps) {
   const { colors } = useApp();
+  const pathname = usePathname();
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ENCABEZADO */}
@@ -34,7 +34,11 @@ export default function ScreenLayout({
           {showBack && (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              accessibilityLabel="Regresar"
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace("/");
+              }}
             >
               <Text style={styles.backText}>‹</Text>
             </TouchableOpacity>
@@ -45,33 +49,24 @@ export default function ScreenLayout({
             <Text style={styles.headerSubtitle}>{subtitle}</Text>
           </View>
 
-          <TouchableOpacity
+          {pathname !== "/perfil" && <TouchableOpacity
             style={styles.profileButton}
+            accessibilityLabel="Mi perfil"
             onPress={() => router.push("/perfil")}
           >
             <Ionicons name="person-outline" size={20} color="#F58220" />
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
-        {!showBack && (
-          <View style={styles.brand}>
-            <Image
-              source={require("../../assets/images/icon.png")}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.brandText}>INVENTIO</Text>
-          </View>
-        )}
       </View>
 
       {/* CONTENIDO */}
-      <ScrollView
+      <FormScroll
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {children}
-      </ScrollView>
+      </FormScroll>
     </View>
   );
 }

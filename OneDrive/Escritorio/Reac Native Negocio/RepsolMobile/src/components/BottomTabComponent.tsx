@@ -30,7 +30,7 @@ export default function ScreenLayout({
           {showBack && (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
             >
               <Text style={styles.backText}>‹</Text>
             </TouchableOpacity>

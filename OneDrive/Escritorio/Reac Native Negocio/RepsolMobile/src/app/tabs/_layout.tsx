@@ -8,6 +8,7 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/login" />;
   return (
     <Tabs
+      initialRouteName={user.role === "admin" ? "index" : "stock"}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#F58220",
@@ -25,6 +26,7 @@ export default function TabsLayout() {
         },
       }}
     >
+      <Tabs.Protected guard={user.role === "admin"}>
       <Tabs.Screen
         name="index"
         options={{
@@ -35,6 +37,7 @@ export default function TabsLayout() {
         }}
       />
 
+      </Tabs.Protected>
       <Tabs.Screen
         name="stock"
         options={{
@@ -45,6 +48,7 @@ export default function TabsLayout() {
         }}
       />
 
+      <Tabs.Screen name="productos" options={{ href: null }} />
       <Tabs.Screen
         name="clientes"
         options={{
