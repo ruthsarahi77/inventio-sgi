@@ -222,6 +222,44 @@ existentes: [SQL aditivo](sql/recuperacion-password.sql). La configuracion exist
 `ddl-auto=update` puede crearla; si se administra el esquema manualmente, revisar
 y aplicar ese script. No se ejecutaron migraciones contra Supabase desde esta tarea.
 
+## Resend mediante SMTP
+
+La implementacion Spring Mail existente admite Resend sin SDK ni cambios de endpoints.
+Configurar en las variables del proceso Spring Boot (IDE, terminal o gestor de secretos):
+
+```dotenv
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=<API_KEY_RESEND>
+MAIL_FROM=onboarding@resend.dev
+MAIL_SMTP_AUTH=true
+MAIL_SSL_ENABLE=true
+MAIL_STARTTLS_ENABLE=false
+MAIL_STARTTLS_REQUIRED=false
+```
+
+Conservar el valor existente de `FRONTEND_RESET_PASSWORD_URL`. Debe ser HTTPS;
+HTTP se admite solo para localhost. No configurar literalmente los placeholders.
+La API key se proporciona exclusivamente como `MAIL_PASSWORD` en el entorno,
+nunca en application.properties, archivos versionados ni configuracion del movil.
+
+Spring Boot no carga `.env` automaticamente: `.env.example` es una plantilla,
+no una configuracion activa. Cargar las variables anteriores en el proceso y
+reiniciar el backend. Los tres flags TLS son obligatorios para esta configuracion:
+465 utiliza TLS implicito, no STARTTLS. Se conservan los defaults genericos de
+application.properties y todos los overrides MAIL_* para otros proveedores.
+
+`onboarding@resend.dev` es el remitente de pruebas: Resend restringe los destinatarios
+permitidos con ese dominio. Para enviar a usuarios finales, verificar un dominio
+propio y configurar un remitente autorizado mediante MAIL_FROM.
+
+La respuesta generica de forgot-password no acredita entrega SMTP. Comprobar la
+entrega en Resend y en el buzon destinatario; despues verificar el enlace de un solo
+uso y el login con la nueva contrasena. No activar debug SMTP ni registrar tokens.
+
+Referencia: https://resend.com/docs/send-with-smtp
+
 ## Proteccion contra abuso y limites operativos
 
 - Ventana de 15 minutos: hasta 5 solicitudes por email normalizado y 20 por IP.
